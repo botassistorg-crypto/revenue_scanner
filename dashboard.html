@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RevenueScanner | Dashboard</title>
+    
+    <!-- TAILWIND & CHARTS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- FONTS (Supports Bangla) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@500;700&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { background-color: #0f172a; color: white; font-family: 'Inter', sans-serif; padding-bottom: 80px; }
+        .font-bangla { font-family: 'Hind Siliguri', sans-serif; }
+        .font-digital { font-family: 'Orbitron', monospace; letter-spacing: 1px; }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .neon-green { text-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+        .neon-red { text-shadow: 0 0 15px rgba(244, 63, 94, 0.4); }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <nav class="sticky top-0 z-50 glass-card border-b border-white/5 p-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center"><i class="fa-solid fa-radar text-white"></i></div>
+            <div>
+                <h1 class="font-bold text-sm tracking-wide">Revenue<span class="text-blue-400">Scanner</span></h1>
+                <p id="client-name-display" class="text-[10px] text-gray-400">Select Client</p>
+            </div>
+        </div>
+        <button onclick="toggleCatalog()" class="bg-white/10 p-2 rounded-lg hover:bg-white/20"><i class="fa-solid fa-list-check"></i> Catalog</button>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="max-w-2xl mx-auto px-4 mt-6">
+        
+        <!-- CATALOG MODAL (Hidden) -->
+        <div id="catalog-ui" class="hidden mb-6 glass-card p-4 rounded-2xl border-l-4 border-blue-500">
+            <h3 class="font-bold mb-2 text-sm">🛒 Add Product Price</h3>
+            <p class="text-xs text-gray-400 mb-3">Add your products here so the AI knows the correct prices.</p>
+            <div class="flex gap-2">
+                <input id="prodName" type="text" placeholder="Product Name (e.g. Black Burqa)" class="bg-black/30 border border-white/10 rounded px-3 py-2 text-sm w-full text-white">
+                <input id="prodPrice" type="number" placeholder="Price" class="bg-black/30 border border-white/10 rounded px-3 py-2 text-sm w-24 text-white">
+            </div>
+            <button onclick="saveProduct()" class="w-full mt-3 bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-bold text-sm transition-colors">
+                Save Product
+            </button>
+            <p id="save-status" class="text-xs text-center mt-2 text-gray-400"></p>
+        </div>
+
+        <!-- HUD STATS -->
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
+                <p class="text-gray-400 text-[10px] uppercase font-bold tracking-widest">Revenue</p>
+                <h2 id="revenue-display" class="font-digital text-2xl mt-1 text-white neon-green">0</h2>
+                <span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded mt-2 inline-block">WON</span>
+            </div>
+            <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-rose-500"></div>
+                <p class="text-gray-400 text-[10px] uppercase font-bold tracking-widest">Lost Money</p>
+                <h2 id="lost-display" class="font-digital text-2xl mt-1 text-white neon-red">0</h2>
+                <span class="text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded mt-2 inline-block">MISSED</span>
+            </div>
+        </div>
+
+        <!-- REASON CHART -->
+        <div class="glass-card p-5 rounded-2xl mb-6">
+            <h3 class="text-xs font-bold text-gray-400 uppercase mb-4">Why customers leave?</h3>
+            <div class="h-40 relative">
+                <canvas id="lossChart"></canvas>
+            </div>
+        </div>
+
+        <!-- LIVE FEED -->
+        <h3 class="text-xs font-bold text-gray-400 uppercase mb-3 px-1">Live Activity</h3>
+        <div id="feed-list" class="space-y-3">
+            <div class="text-center py-10 text-gray-600 text-sm animate-pulse">Connecting to Neural Network...</div>
+        </div>
+
+    </main>
+
+    <script>
+        // ================= CONFIGURATION =================
+        // PASTE YOUR GOOGLE SCRIPT WEB APP URL HERE
+        const API_URL = "https://script.google.com/macros/s/AKfycbzYOcc-7WRJ2YMRI1CodT_njMR8Kjyzjfx1rhFaKxkK9Zxk4TvAsh6w86deg3NYDYlWwg/exec";
+        // =================================================
+
+        // 1. Get Client Name from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        // Default to "Botassist Bangladesh" if no link param (For testing)
+        const CLIENT_NAME = urlParams.get('client') || "Botassist Bangladesh"; 
+        
+        document.getElementById('client-name-display').innerText = CLIENT_NAME;
+
+        // INIT
+        fetchData();
+
+        // 2. TOGGLE CATALOG
+        function toggleCatalog() {
+            const el = document.getElementById('catalog-ui');
+            el.classList.toggle('hidden');
+        }
+
+        // 3. SAVE PRODUCT FUNCTION
+        function saveProduct() {
+            const name = document.getElementById('prodName').value;
+            const price = document.getElementById('prodPrice').value;
+            const btn = document.getElementById('save-status');
+
+            if(!name || !price) { btn.innerText = "Please fill details"; return; }
+
+            btn.innerText = "Saving to AI Brain...";
+            
+            fetch(API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({
+                    type: "ADD_PRODUCT",
+                    pageName: CLIENT_NAME,
+                    prodName: name,
+                    prodPrice: price
+                })
+            }).then(() => {
+                btn.innerText = "✅ Saved! AI now knows this price.";
+                document.getElementById('prodName').value = "";
+                document.getElementById('prodPrice').value = "";
+                setTimeout(() => toggleCatalog(), 2000);
+            });
+        }
+
+        // 4. FETCH DATA
+        async function fetchData() {
+            try {
+                // Add page param to URL
+                const response = await fetch(`${API_URL}?page=${encodeURIComponent(CLIENT_NAME)}`);
+                const data = await response.json();
+                
+                if(!data || data.length === 0) {
+                     document.getElementById('feed-list').innerHTML = "<div class='text-center py-10 text-gray-500'>No data found for this client.</div>";
+                     return;
+                }
+
+                renderDashboard(data);
+
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderDashboard(data) {
+            let revenue = 0;
+            let lost = 0;
+            let reasons = {};
+            let html = "";
+
+            data.slice().reverse().forEach(row => {
+                let status = (row.Status || "").toLowerCase();
+                let amount = parseInt(row.Revenue) || 0;
+                let reason = row.Reason || "";
+                
+                // Calc Stats
+                if (status.includes("won")) revenue += amount;
+                if (status.includes("lost")) {
+                    lost++;
+                    reasons[reason] = (reasons[reason] || 0) + 1;
+                }
+
+                // Render Feed Item (Bangla Font applied)
+                let isWon = status.includes("won");
+                let colorClass = isWon ? "text-emerald-400" : "text-rose-400";
+                let icon = isWon ? "fa-check" : "fa-xmark";
+                let bg = isWon ? "bg-emerald-500/10" : "bg-rose-500/10";
+                let amountTxt = isWon ? `+${amount}` : "LOST";
+
+                html += `
+                <div class="glass-card p-3 rounded-xl flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full ${bg} ${colorClass} flex items-center justify-center text-xs">
+                            <i class="fa-solid ${icon}"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-200">${row.Customer_Name}</p>
+                            <p class="text-[10px] text-gray-500 font-bangla">${row.Summary || reason}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                         <p class="font-digital ${colorClass} text-sm">${amountTxt}</p>
+                         <p class="text-[10px] text-gray-600 font-bangla">${row.Reason}</p>
+                    </div>
+                </div>`;
+            });
+
+            // Update DOM
+            document.getElementById('revenue-display').innerText = revenue.toLocaleString();
+            document.getElementById('lost-display').innerText = lost;
+            document.getElementById('feed-list').innerHTML = html;
+
+            // Render Chart
+            renderChart(reasons);
+        }
+
+        function renderChart(reasons) {
+            const ctx = document.getElementById('lossChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(reasons),
+                    datasets: [{
+                        data: Object.values(reasons),
+                        backgroundColor: ['#f43f5e', '#fbbf24', '#3b82f6'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { 
+                    plugins: { legend: { position: 'right', labels: { color: 'white', font: { family: 'Hind Siliguri' } } } },
+                    responsive: true, 
+                    maintainAspectRatio: false 
+                }
+            });
+        }
+    </script>
+</body>
+</html>
