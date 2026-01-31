@@ -106,15 +106,23 @@
         token: token
     };
 
-    fetch(GOOGLE_SCRIPT_URL, {
+       fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors', // standard for GAS webhooks
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     }).then(() => {
-        document.getElementById('status').innerText = '✅ Success! Connected: ' + page;
+        // === UPDATE STARTS HERE ===
+        document.getElementById('status').innerText = '✅ Success! Redirecting to Dashboard...';
         document.getElementById('status').className = 'success';
         document.querySelector('.fb-btn').style.display = 'none'; // Hide button
+
+        // Redirect to dashboard.html with the client name parameter
+        setTimeout(() => {
+            window.location.href = `dashboard.html?client=${encodeURIComponent(page)}`;
+        }, 1500); 
+        // === UPDATE ENDS HERE ===
+
     }).catch(err => {
         console.error(err);
         document.getElementById('status').innerText = 'Error connecting to database.';
